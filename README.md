@@ -2,6 +2,35 @@
 
 Curso AI Automation Avanzado (Coderhouse) · Jose Ortiz de Zevallos
 
+Copiloto de Estrategia y Gestión de Personas para una empresa productora de alimentos (prototipo con datos ficticios). El mismo proyecto crece en cada pre-entrega.
+
+## Pre-entrega 2: Orquestación multi-agente con sub-workflows
+
+**Archivos (exportados de n8n):**
+- [`manager_modulo2_ortiz_de_zevallos_jose.json`](manager_modulo2_ortiz_de_zevallos_jose.json): Workflow Manager.
+- [`worker1_modulo2_ortiz_de_zevallos_jose.json`](worker1_modulo2_ortiz_de_zevallos_jose.json): Worker 1 · Check-in OKR.
+- [`worker2_modulo2_ortiz_de_zevallos_jose.json`](worker2_modulo2_ortiz_de_zevallos_jose.json): Worker 2 · Indicadores de Personas.
+
+El agente de la pre-entrega 1 se encapsuló como especialista y se agregó un Manager que interpreta la intención y delega (patrón Manager-Worker).
+
+```
+[Chat Trigger] → [Router: LLM + JSON estructurado] → [Switch por intención]
+   ├─ CHECKIN_OKR          → [Set payload] → [Execute Workflow → Worker 1 · Check-in OKR]
+   ├─ INDICADORES_PERSONAS → [Set payload] → [Execute Workflow → Worker 2 · Indicadores]
+   ├─ FUERA_DE_ALCANCE     → respuesta de alcance
+   └─ fallback (REVISION_HUMANA, confianza < 0,6 o falla del Router) → supervisor humano
+[IF status = success] → integrar respuesta | contingencia → [Log Gmail] → [Respuesta]
+```
+
+- **Router:** Basic LLM Chain con taxonomía cerrada y Structured Output Parser; devuelve `{intencion, confianza, unidad, mes, indicador, motivo}`. Un Switch determinista decide el destino.
+- **Workers:** dos sub-workflows separados, cada uno con Execute Workflow Trigger y una tarea atómica. El Worker 2 no usa LLM.
+- **Handoff:** un Set limpia el payload antes de cada Execute Workflow, con *Wait for child to finish* activado. Timeouts: Manager 180 s, Worker 1 120 s, Worker 2 30 s.
+- **Contrato de salida:** todo Worker devuelve `{"status": "success" | "error", "worker", "entrada", "data"}`. Ante fallos devuelve un código (`SIN_DATOS`, `ERROR_FUENTE`, `ERROR_AGENTE`, `LIMITE_ITERACIONES`) en vez de cortar la ejecución; si el sub-workflow no responde, la salida de error del Execute Workflow arma el mismo contrato.
+- **Trazabilidad:** correo final con intención, Worker invocado, parámetros enviados y respuesta devuelta, sin credenciales ni trazas técnicas.
+- **Prueba:** 8 casos ejecutados en n8n (check-in, indicadores, revisión humana, fuera de alcance, mes sin datos, Worker inexistente, fuente caída y consulta de todas las unidades).
+
+**Para importarlos:** importar primero los dos Workers, copiar sus IDs en los nodos `Delegar a Worker 1` y `Delegar a Worker 2` del Manager (`PEGA_AQUI_EL_ID_DEL_WORKER_1` y `_2`), reemplazar `PEGA_AQUI_EL_ID_DE_TU_PLANILLA` (pestañas `OKR_Tracker`, `Checkins` e `Indicadores`) y `TU_CORREO@ejemplo.com`, y asignar las credenciales de OpenAI, Google Sheets y Gmail.
+
 ## Pre-entrega 1: Agente autónomo básico funcional
 
 **Archivo:** [`checkpoint1_jose_ortiz_de_zevallos.json`](checkpoint1_jose_ortiz_de_zevallos.json), workflow exportado de n8n.

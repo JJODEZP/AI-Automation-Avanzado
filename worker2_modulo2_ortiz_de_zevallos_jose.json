@@ -1,0 +1,369 @@
+{
+  "name": "M2 · Worker 2 · Indicadores de Personas",
+  "nodes": [
+    {
+      "id": "c1144135-1f50-4ded-8030-b155eb111e4a",
+      "name": "Entrada Worker 2",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        192
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "unidad",
+              "type": "string"
+            },
+            {
+              "name": "mes",
+              "type": "string"
+            },
+            {
+              "name": "indicador",
+              "type": "string"
+            },
+            {
+              "name": "consulta",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "817a3b2b-3226-4c36-8308-6f4a8b830eff",
+      "name": "Leer Indicadores",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        192
+      ],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "PEGA_AQUI_EL_ID_DE_TU_PLANILLA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Indicadores",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "796b0374-fc26-4bca-8d46-c9418ee8f706",
+      "name": "Filtrar unidad y mes",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        448,
+        96
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000001",
+              "leftValue": "={{ (() => { const p = $('Entrada Worker 2').first().json; const meses = $('Leer Indicadores').all().map(i => String(i.json.Mes)).sort(); const mes = (p.mes || '').trim() || meses[meses.length - 1]; const u = (p.unidad || '').trim().toLowerCase(); const unidadOk = !u || u === 'todas' || String($json.Unidad).toLowerCase() === u; return String($json.Mes) === mes && unidadOk; })() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "25b6a7af-cd01-40ea-8606-ec527cf2cd13",
+      "name": "Agrupar filas",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        672,
+        96
+      ],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "filas",
+        "options": {}
+      }
+    },
+    {
+      "id": "f9c196ba-ba60-4cfe-8c9a-02cce0b7eac4",
+      "name": "¿Hay datos para la consulta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        96
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000002",
+              "leftValue": "={{ ($json.filas || []).filter(f => f.Unidad).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "96fd1466-54c8-4c02-bc1b-38c75ed33a28",
+      "name": "Contrato de salida (success)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000010",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000011",
+              "name": "worker",
+              "value": "indicadores_personas",
+              "type": "string"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000012",
+              "name": "entrada",
+              "value": "={{ { unidad: $('Entrada Worker 2').first().json.unidad || 'Todas', mes: $('Entrada Worker 2').first().json.mes || 'ultimo disponible', indicador: $('Entrada Worker 2').first().json.indicador || 'todos' } }}",
+              "type": "object"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000013",
+              "name": "data",
+              "value": "={{ (() => { const ind = ($('Entrada Worker 2').first().json.indicador || 'todos').toLowerCase(); const dec = x => Number(x).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); const ent = x => Number(x).toLocaleString('es-CL'); const filas = $json.filas.filter(f => f.Unidad).map(f => { const real = Number(f.Dotacion_Real); const pres = Number(f.Dotacion_Presupuestada); const egr = Number(f.Egresos_Voluntarios) + Number(f.Egresos_Involuntarios); return { unidad: f.Unidad, mes: String(f.Mes), dotacion_real: real, dotacion_presupuestada: pres, desviacion_dotacion_pct: Math.round((real - pres) / pres * 1000) / 10, ingresos: Number(f.Ingresos), egresos: egr, rotacion_mensual_pct: Math.round(egr / real * 1000) / 10, ausentismo_pct: Number(f.Ausentismo_Pct) }; }); const lineas = filas.map(f => { const partes = []; if (ind === 'dotacion' || ind === 'todos') { partes.push('dotación ' + ent(f.dotacion_real) + ' vs ' + ent(f.dotacion_presupuestada) + ' presupuestada (' + (f.desviacion_dotacion_pct > 0 ? '+' : '') + dec(f.desviacion_dotacion_pct) + '%)'); } if (ind === 'movimientos' || ind === 'todos') { partes.push('ingresos ' + ent(f.ingresos) + ', egresos ' + ent(f.egresos) + ' (rotación mensual ' + dec(f.rotacion_mensual_pct) + '%)'); } if (ind === 'ausentismo' || ind === 'todos') { partes.push('ausentismo ' + dec(f.ausentismo_pct) + '%'); } return '- ' + f.unidad + ': ' + partes.join('; ') + '.'; }); return { mes: filas[0].mes, unidades: filas, resumen: 'Indicadores de Personas, mes ' + filas[0].mes + ':\\n' + lineas.join('\\n') }; })() }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3812064c-2881-421b-b409-cb6845f1d25a",
+      "name": "Contrato de salida (error: sin datos)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        192
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000020",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000021",
+              "name": "worker",
+              "value": "indicadores_personas",
+              "type": "string"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000022",
+              "name": "entrada",
+              "value": "={{ { unidad: $('Entrada Worker 2').first().json.unidad || 'Todas', mes: $('Entrada Worker 2').first().json.mes || 'ultimo disponible', indicador: $('Entrada Worker 2').first().json.indicador || 'todos' } }}",
+              "type": "object"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000023",
+              "name": "data",
+              "value": "={{ { codigo: 'SIN_DATOS', mensaje_usuario: 'No encontré indicadores para ' + ($('Entrada Worker 2').first().json.unidad || 'todas las unidades') + ' en el mes ' + ($('Entrada Worker 2').first().json.mes || 'solicitado') + '. Meses disponibles: ' + $('Leer Indicadores').all().map(i => String(i.json.Mes)).filter((m, i, a) => a.indexOf(m) === i).join(', ') + '.' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2666a32c-b5b2-4808-8794-752131d73941",
+      "name": "Contrato de salida (error: fuente)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        288
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000030",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000031",
+              "name": "worker",
+              "value": "indicadores_personas",
+              "type": "string"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000032",
+              "name": "entrada",
+              "value": "={{ { unidad: $('Entrada Worker 2').first().json.unidad || 'Todas', mes: $('Entrada Worker 2').first().json.mes || 'ultimo disponible', indicador: $('Entrada Worker 2').first().json.indicador || 'todos' } }}",
+              "type": "object"
+            },
+            {
+              "id": "f1a0c001-0000-4000-8000-000000000033",
+              "name": "data",
+              "value": "={{ { codigo: 'ERROR_FUENTE', mensaje_usuario: 'La fuente de indicadores no respondió.', ejecucion_worker: $execution.id } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0dd8ba32-f28d-48f4-a1c0-2034c86d4e21",
+      "name": "Sticky Note 19d6bc71",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        -96
+      ],
+      "parameters": {
+        "content": "## Worker 2 · Indicadores de Personas\nTarea atómica: leer la pestaña Indicadores y calcular dotación real vs presupuestada, movimientos (ingresos, egresos, rotación mensual) y ausentismo por unidad y mes. Sin LLM: costo cero tokens.\n\n**Entrada:** `{unidad, mes, indicador, consulta}`\n**Salida (contrato):** `{status: \"success\" | \"error\", worker, entrada, data}`\n\nSi la planilla falla o no hay datos, el Worker no muere: devuelve `status: \"error\"` con un código (`ERROR_FUENTE` o `SIN_DATOS`) y un mensaje para el usuario.",
+        "color": 4,
+        "width": 1280,
+        "height": 512
+      }
+    }
+  ],
+  "connections": {
+    "Entrada Worker 2": {
+      "main": [
+        [
+          {
+            "node": "Leer Indicadores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer Indicadores": {
+      "main": [
+        [
+          {
+            "node": "Filtrar unidad y mes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contrato de salida (error: fuente)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar unidad y mes": {
+      "main": [
+        [
+          {
+            "node": "Agrupar filas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agrupar filas": {
+      "main": [
+        [
+          {
+            "node": "¿Hay datos para la consulta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay datos para la consulta?": {
+      "main": [
+        [
+          {
+            "node": "Contrato de salida (success)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contrato de salida (error: sin datos)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "executionTimeout": 30,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {}
+}
