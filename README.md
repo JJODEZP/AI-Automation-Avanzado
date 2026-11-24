@@ -8,7 +8,7 @@ Copiloto de Estrategia y Gestión de Personas para una empresa productora de ali
 
 **Archivos (exportados de n8n):**
 - [`manager_modulo3_ortiz_de_zevallos_jose.json`](manager_modulo3_ortiz_de_zevallos_jose.json): Manager de la pre-entrega 2 con la capa de memoria.
-- [`worker1_modulo3_ortiz_de_zevallos_jose.json`](worker1_modulo3_ortiz_de_zevallos_jose.json): Worker 1 actualizado; recibe el contexto de memoria. El Worker 2 no cambia.
+- [`worker1_modulo3_ortiz_de_zevallos_jose.json`](worker1_modulo3_ortiz_de_zevallos_jose.json): Worker 1 actualizado; recibe el contexto de memoria y entiende lenguaje cotidiano. El Worker 2 no cambia.
 
 ```
 [Chat Trigger] → [Airtable: buscar por Session_ID] → [IF ¿usuario con memoria?]
@@ -23,10 +23,18 @@ Copiloto de Estrategia y Gestión de Personas para una empresa productora de ali
 - **Base de memoria (Airtable, tabla `Memoria Usuarios`):** una fila por `Session_ID`, con los campos Nombre del usuario, Fecha de actualización, Resumen consolidado, Estado del caso, Datos clave, Última intención, Cantidad de mensajes e Historial reciente.
 - **Aislamiento de sesión:** la búsqueda usa `filterByFormula` sobre `Session_ID` justo después del trigger; todas las escrituras son upsert sobre ese mismo campo (idempotentes, sin filas duplicadas).
 - **Inyección de contexto:** `user_name`, `status` y `last_summary` entran al System Prompt del agente entre `[INICIO DE CONTEXTO COMPARTIDO]` y `[FIN DEL CONTEXTO COMPARTIDO]`, como dato y no como instrucción.
-- **Resumen:** al superar 5 mensajes, un modelo económico (gpt-5-mini) condensa el historial con un prompt estricto; un nodo Set valida el JSON antes de escribirlo y el búfer vuelve a 0. Solo se guardan hechos accionables: nada de conversación completa, logs ni HTML.
+- **Resumen:** al superar 5 mensajes, un modelo económico condensa el historial con un prompt estricto; un nodo Set valida el JSON antes de escribirlo y el búfer vuelve a 0. Solo se guardan hechos accionables: nada de conversación completa, logs ni HTML.
 - **Prueba:** usuario nuevo, usuario recurrente con referencias al contexto, activación del resumen, recuperación desde la memoria consolidada y aislamiento entre tres sesiones.
 
-**Para importarlos:** crear en Airtable la tabla con esos campos, reemplazar `PEGA_AQUI_EL_ID_DE_TU_BASE_AIRTABLE` y `PEGA_AQUI_EL_ID_DE_LA_TABLA_MEMORIA`, y asignar la credencial "Airtable Personal Access Token" (scopes `data.records:read`, `data.records:write`, `schema.bases:read`). El resto de los placeholders son los mismos de la pre-entrega 2.
+**Ajuste de experiencia de usuario (posterior a la entrega):**
+- **Lenguaje cotidiano:** el líder no necesita saber el código del KR. El Worker 1 lo deduce por sinónimos ("renuncias" = rotación), por la unidad que se desprende de su cargo y por si el valor tiene sentido para ese KR. Si dos KR calzan, pregunta con opciones numeradas; si lo deduce, lo dice como supuesto.
+- **Menos fricción:** si no se indica fecha de corte se usa la de hoy; una respuesta a la pregunta del Copiloto ("la de los sucesores") completa el check-in pendiente, y una corrección ("no, eran los días de vacantes") registra el KR correcto reutilizando el valor.
+- **Respuestas sin jerga:** el KR se nombra en palabras, el semáforo se explica ("está en riesgo", "requiere atención") y se cierra con un próximo paso concreto. El saludo muestra un menú con ejemplos.
+- **Contexto reciente:** el Router y el Worker 1 reciben también los últimos mensajes de la sesión, para entender respuestas cortas.
+- **Guardrail determinista:** si el agente afirma haber registrado un avance sin llamar a la herramienta de registro, el contrato de salida reemplaza la respuesta por un aviso y marca una alerta en la traza.
+- **Modelos (vía OpenRouter):** Worker 1 con `openai/gpt-5.6-terra` (razonamiento medio); Router y resumidor con `openai/gpt-5.6-luna` (razonamiento bajo).
+
+**Para importarlos:** crear en Airtable la tabla con esos campos, reemplazar `PEGA_AQUI_EL_ID_DE_TU_BASE_AIRTABLE` y `PEGA_AQUI_EL_ID_DE_LA_TABLA_MEMORIA`, y asignar la credencial "Airtable Personal Access Token" (scopes `data.records:read`, `data.records:write`, `schema.bases:read`) y una credencial de OpenRouter en los tres nodos de modelo. El resto de los placeholders son los mismos de la pre-entrega 2.
 
 ## Pre-entrega 2: Orquestación multi-agente con sub-workflows
 
