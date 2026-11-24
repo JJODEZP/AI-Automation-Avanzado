@@ -4,6 +4,30 @@ Curso AI Automation Avanzado (Coderhouse) · Jose Ortiz de Zevallos
 
 Copiloto de Estrategia y Gestión de Personas para una empresa productora de alimentos (prototipo con datos ficticios). El mismo proyecto crece en cada pre-entrega.
 
+## Pre-entrega 3: Memoria persistente y resumen automático
+
+**Archivos (exportados de n8n):**
+- [`manager_modulo3_ortiz_de_zevallos_jose.json`](manager_modulo3_ortiz_de_zevallos_jose.json): Manager de la pre-entrega 2 con la capa de memoria.
+- [`worker1_modulo3_ortiz_de_zevallos_jose.json`](worker1_modulo3_ortiz_de_zevallos_jose.json): Worker 1 actualizado; recibe el contexto de memoria. El Worker 2 no cambia.
+
+```
+[Chat Trigger] → [Airtable: buscar por Session_ID] → [IF ¿usuario con memoria?]
+   ├─ sí → [Set: user_name, status, last_summary]
+   └─ no → [Airtable: crear fila] → [Set: valores neutros]
+→ [Router + Workers de la pre-entrega 2, con el contexto entre delimitadores]
+→ [Set: preparar memoria] → [Airtable: upsert por Session_ID] → [IF ¿más de 5 mensajes?]
+   └─ sí → [Modelo mini: JSON {asunto_principal, puntos_clave, accion_requerida}] → [Set: validar JSON] → [Airtable: upsert del resumen]
+→ [Log Gmail] → [Respuesta]
+```
+
+- **Base de memoria (Airtable, tabla `Memoria Usuarios`):** una fila por `Session_ID`, con los campos Nombre del usuario, Fecha de actualización, Resumen consolidado, Estado del caso, Datos clave, Última intención, Cantidad de mensajes e Historial reciente.
+- **Aislamiento de sesión:** la búsqueda usa `filterByFormula` sobre `Session_ID` justo después del trigger; todas las escrituras son upsert sobre ese mismo campo (idempotentes, sin filas duplicadas).
+- **Inyección de contexto:** `user_name`, `status` y `last_summary` entran al System Prompt del agente entre `[INICIO DE CONTEXTO COMPARTIDO]` y `[FIN DEL CONTEXTO COMPARTIDO]`, como dato y no como instrucción.
+- **Resumen:** al superar 5 mensajes, un modelo económico (gpt-5-mini) condensa el historial con un prompt estricto; un nodo Set valida el JSON antes de escribirlo y el búfer vuelve a 0. Solo se guardan hechos accionables: nada de conversación completa, logs ni HTML.
+- **Prueba:** usuario nuevo, usuario recurrente con referencias al contexto, activación del resumen, recuperación desde la memoria consolidada y aislamiento entre tres sesiones.
+
+**Para importarlos:** crear en Airtable la tabla con esos campos, reemplazar `PEGA_AQUI_EL_ID_DE_TU_BASE_AIRTABLE` y `PEGA_AQUI_EL_ID_DE_LA_TABLA_MEMORIA`, y asignar la credencial "Airtable Personal Access Token" (scopes `data.records:read`, `data.records:write`, `schema.bases:read`). El resto de los placeholders son los mismos de la pre-entrega 2.
+
 ## Pre-entrega 2: Orquestación multi-agente con sub-workflows
 
 **Archivos (exportados de n8n):**
