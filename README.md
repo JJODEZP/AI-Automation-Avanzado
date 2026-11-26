@@ -4,6 +4,54 @@ Curso AI Automation Avanzado (Coderhouse) · Jose Ortiz de Zevallos
 
 Copiloto de Estrategia y Gestión de Personas para una empresa productora de alimentos (prototipo con datos ficticios). El mismo proyecto crece en cada pre-entrega.
 
+## Pre-entrega 4: Integraciones reales (CRM, correo y canal del equipo)
+
+**Archivo:** [`checkpoint4_jose_ortiz_de_zevallos.json`](checkpoint4_jose_ortiz_de_zevallos.json), workflow exportado de n8n. Parte del Manager de la pre-entrega 3 y le suma una entrada por correo y tres herramientas conectadas por OAuth2: HubSpot (CRM), Gmail (correo) y Slack (canal del equipo).
+
+**Credenciales activas en n8n:**
+
+![Credenciales OAuth2 de Gmail, Slack y HubSpot en n8n](img/conexiones_oauth_n8n_m4.png)
+
+Ahora los líderes también pueden reportar su avance por correo. El Copiloto lo procesa igual que un mensaje de chat, deja el contacto al día en el CRM, prepara la respuesta como borrador para que una persona la revise y avisa al canal del equipo.
+
+```
+[Gmail Trigger: no leídos con "check-in" o "avance"] → ① [IF ¿respuesta automática?] ── sí → ignorar (corta el bucle)
+                                                          └─ no → [Set: entrada desde correo] ─┐
+[Chat Trigger] ────────────────────────────────────────────────────────────────────────────────┴→ [Entrada unificada]
+→ [Memoria + Router + Workers de la pre-entrega 3] → [¿Llegó por correo?] ── no → respuesta en el chat
+   └─ sí → ④ [Set: limpiar y validar payload] → [¿Payload válido?] ── no → descartar (evita el 400)
+      └─ sí → ② [HubSpot: buscar por email] → [¿Existe?] ── sí → actualizar nota del contacto
+                                                        └─ no → crear contacto (cargo "por validar")
+         → ③ [Gmail: crear borrador en el mismo hilo] → [Set: texto mínimo] → [Slack: aviso al canal]
+```
+
+- **① Filtro anti respuestas automáticas:** IF inmediatamente después del trigger. Descarta asuntos como *Auto-reply*, *Out of office*, *Respuesta automática*, *Undeliverable* o *Delivery Status Notification*, remitentes `no-reply@`, `noreply@` o `mailer-daemon@`, y correos con las cabeceras `Auto-Submitted` o `Precedence: bulk`. También ignora los logs del propio Copiloto (asunto `[M…]`), así no se responde a sí mismo.
+- **Limpieza del correo entrante:** antes de pasar el texto al agente se corta la parte citada del hilo ("El … escribió:", líneas con `>`) y se limita el largo, para no gastar tokens en historial repetido.
+- **④ Validación del payload:** un Set arma solo los campos que usan las integraciones (`email`, `nombre`, `asunto`, `texto`, `respuesta`, `estado`) y calcula `email_valido` (formato de correo y respuesta no vacía). Si falla, el ítem se descarta antes de llamar a HubSpot o Gmail, lo que evita errores 400.
+- **② Look up antes de Create:** HubSpot busca el contacto por email. Si existe, solo se actualiza la nota con el último check-in; si no, se crea con el cargo "Líder de Personas (por validar)". Así no hay duplicados ni errores 409.
+- **③ Human in the loop:** la salida en Gmail es solo **Create Draft**, en el mismo hilo del correo recibido. El Copiloto nunca envía: una persona revisa y aprueba el borrador.
+- **Slack liviano:** un Set deja un único campo de texto (líder, asunto, resultado y un resumen de máximo 280 caracteres) antes del nodo de Slack: sin adjuntos ni payloads pesados. Si el KR queda en rojo o pasa a revisión humana, el mensaje parte con `*ALERTA*`. Si Slack falla, el flujo no se corta.
+
+**Permisos mínimos (mínimo privilegio):** son los scopes que necesita el flujo; al crear las credenciales no conviene dar más.
+
+| Herramienta | Credencial n8n | Scopes que usa el flujo |
+|---|---|---|
+| HubSpot | HubSpot OAuth2 API | `crm.objects.contacts.read`, `crm.objects.contacts.write` |
+| Gmail | Gmail OAuth2 API | `gmail.readonly` (leer el correo entrante), `gmail.compose` (crear borradores y enviar el log de trazabilidad) |
+| Slack | Slack OAuth2 API | `chat:write`, `channels:read` |
+
+**Prueba de regresión manual (n8n, nodo por nodo):** en los casos de correo, el disparador de Gmail se alimentó con un correo de ejemplo fijado (*pin data*); el resto de los nodos corrió contra HubSpot, Gmail y Slack reales con líderes ficticios (`@example.com`).
+
+| Caso | Resultado |
+|---|---|
+| Respuesta automática ("Auto-reply") | Se corta en ①; no llega al agente ni a las integraciones |
+| Check-in por chat | Recorre la memoria y el Router como en la pre-entrega 3 y responde en el chat |
+| Correo de un líder que ya está en el CRM | Look up lo encuentra → actualiza la nota → borrador en Gmail → aviso en Slack |
+| Correo de un líder nuevo con un KR en rojo | Look up no lo encuentra → lo crea con cargo "por validar" → borrador → aviso en Slack con `*ALERTA*` |
+| Correo sin remitente válido | `email_valido = false` → se descarta antes de HubSpot y Gmail |
+
+**Para importarlo:** además de lo indicado en la pre-entrega 3, asignar las credenciales de Gmail (trigger, borrador y log), HubSpot (los tres nodos del CRM) y Slack, y en el nodo de Slack elegir el canal del equipo (por defecto `copiloto-personas`). El Gmail Trigger revisa cada minuto los correos no leídos de la bandeja de entrada con "check-in", "checkin" o "avance" en el asunto.
+
 ## Pre-entrega 3: Memoria persistente y resumen automático
 
 **Archivos (exportados de n8n):**
